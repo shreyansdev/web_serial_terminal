@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Serial Terminal - Microcontroller Console & Telemetry Plotter</title>
+    <meta name="description" content="Feature-rich, high-performance browser serial terminal with multi-device support, live telemetry charting, IndexedDB persistence, file transfers, and PWA capabilities.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-matrix">
+    <div id="app" class="app-container">
+        <!-- Unsupported Browser Alert Banner -->
+        <div id="unsupported-banner" class="unsupported-banner hidden" role="alert">
+            <div class="banner-content">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <span id="unsupported-message">Web Serial API Not Supported: Your browser does not support Web Serial. Please use Chrome, Edge, or another Chromium-based browser.</span>
+            </div>
+        </div>
+
+        <!-- Multi-Device Connection Tabs Bar -->
+        <nav class="device-tabs-bar" id="device-tabs-bar" aria-label="Device Connections">
+            <div id="tabs-container" class="tabs-container"></div>
+            <button id="btn-add-tab" class="btn-icon btn-add-tab" title="Connect another serial device tab">+ New Device Tab</button>
+        </nav>
+
+        <!-- Header -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="brand-logo">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="4" width="20" height="16" rx="2"/>
+                        <path d="M6 8l4 4-4 4"/>
+                        <line x1="12" y1="16" x2="18" y2="16"/>
+                    </svg>
+                </div>
+                <div class="brand-text">
+                    <h1>Web Serial Terminal</h1>
+                    <span class="version-tag">v2.0 Pro • WebSerial API</span>
+                </div>
+            </div>
+
+            <!-- Status Indicator Badge & PWA Install Button -->
+            <div class="header-right">
+                <button id="btn-pwa-install" class="btn btn-secondary btn-sm hidden" title="Install Web Serial Terminal as a standalone desktop/mobile app">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    <span>Install App</span>
+                </button>
+
+                <div class="status-bar" id="status-bar" role="status" aria-live="polite">
+                    <span class="status-dot disconnected" id="status-dot"></span>
+                    <span class="status-text" id="status-text">Disconnected</span>
+                    <div class="activity-indicators">
+                        <span id="rx-led" class="led led-rx" title="RX Activity">RX</span>
+                        <span id="tx-led" class="led led-tx" title="TX Activity">TX</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Toolbar / Control Bar -->
+        <section class="toolbar" aria-label="Serial Controls">
+            <!-- Connection Controls -->
+            <div class="toolbar-group primary-controls">
+                <button id="btn-connect" class="btn btn-primary" title="Select and connect to serial device">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
+                        <line x1="12" y1="2" x2="12" y2="12"/>
+                    </svg>
+                    <span>Connect</span>
+                </button>
+
+                <button id="btn-disconnect" class="btn btn-danger hidden" title="Disconnect current device">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
+                        <line x1="12" y1="2" x2="12" y2="12"/>
+                    </svg>
+                    <span>Disconnect</span>
+                </button>
+
+                <div class="control-unit">
+                    <label for="baud-rate">Baud Rate:</label>
+                    <select id="baud-rate" class="select-input">
+                        <option value="300">300</option>
+                        <option value="1200">1200</option>
+                        <option value="2400">2400</option>
+                        <option value="4800">4800</option>
+                        <option value="9600" selected>9600</option>
+                        <option value="19200">19200</option>
+                        <option value="38400">38400</option>
+                        <option value="57600">57600</option>
+                        <option value="115200">115200</option>
+                        <option value="230400">230400</option>
+                        <option value="460800">460800</option>
+                        <option value="921600">921600</option>
+                        <option value="custom">Custom...</option>
+                    </select>
+                </div>
+
+                <div id="custom-baud-container" class="control-unit hidden">
+                    <input type="number" id="custom-baud-input" class="text-input custom-baud" placeholder="e.g. 250000" min="1" max="4000000">
+                </div>
+            </div>
+
+            <!-- Advanced Config Toggle -->
+            <div class="toolbar-group secondary-controls">
+                <button id="btn-toggle-settings" class="btn btn-secondary" title="Serial port advanced settings (Data bits, Parity, Signals)">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                    <span>Port Config</span>
+                </button>
+
+                <div class="separator"></div>
+
+                <!-- Display Format Mode -->
+                <div class="control-unit">
+                    <label for="display-mode">Format:</label>
+                    <select id="display-mode" class="select-input">
+                        <option value="text">UTF-8 Text</option>
+                        <option value="hex">HEX View</option>
+                        <option value="ascii">ASCII Printable</option>
+                        <option value="binary">Binary</option>
+                        <option value="plotter">Telemetry Plotter</option>
+                    </select>
+                </div>
+
+                <!-- Theme Selector -->
+                <div class="control-unit">
+                    <label for="theme-select">Theme:</label>
+                    <select id="theme-select" class="select-input">
+                        <option value="theme-matrix">Matrix Green</option>
+                        <option value="theme-cyberpunk">Cyberpunk Cyan</option>
+                        <option value="theme-amber">Classic Amber</option>
+                        <option value="theme-dark">Dark Minimal</option>
+                        <option value="theme-light">Light Mode</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <!-- Advanced Settings Dropdown Drawer -->
+        <div id="settings-drawer" class="settings-drawer hidden">
+            <div class="drawer-header">
+                <h3>Advanced Serial & Hardware Profiles</h3>
+                <button id="btn-close-settings" class="btn-icon" title="Close Settings">&times;</button>
+            </div>
+            <div class="drawer-grid">
+                <div class="setting-item">
+                    <label for="data-bits">Data Bits:</label>
+                    <select id="data-bits" class="select-input">
+                        <option value="8" selected>8 bits</option>
+                        <option value="7">7 bits</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label for="stop-bits">Stop Bits:</label>
+                    <select id="stop-bits" class="select-input">
+                        <option value="1" selected>1 bit</option>
+                        <option value="2">2 bits</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label for="parity">Parity:</label>
+                    <select id="parity" class="select-input">
+                        <option value="none" selected>None</option>
+                        <option value="even">Even</option>
+                        <option value="odd">Odd</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label for="flow-control">Flow Control:</label>
+                    <select id="flow-control" class="select-input">
+                        <option value="none" selected>None</option>
+                        <option value="hardware">RTS/CTS</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label for="buffer-limit">Max Buffer Lines:</label>
+                    <select id="buffer-limit" class="select-input">
+                        <option value="500">500 lines</option>
+                        <option value="1000" selected>1,000 lines</option>
+                        <option value="5000">5,000 lines</option>
+                        <option value="0">Unlimited</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label for="reset-profile">Hardware Reset Profile:</label>
+                    <select id="reset-profile" class="select-input">
+                        <option value="esp32" selected>ESP32 / ESP8266 Auto-Reset</option>
+                        <option value="esp32s3">ESP32-S3 / C3 Native USB</option>
+                        <option value="arduino">Arduino DTR Pulse</option>
+                        <option value="generic">Generic Pulse (150ms)</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label for="chk-db-persist" class="checkbox-label" style="margin-top: 18px;">
+                        <input type="checkbox" id="chk-db-persist" checked>
+                        <span>IndexedDB History Persistence</span>
+                    </label>
+                </div>
+                <div class="setting-item signal-controls">
+                    <label>Control Signals:</label>
+                    <div class="btn-group">
+                        <button id="btn-toggle-dtr" class="btn btn-toggle" title="Toggle Data Terminal Ready (DTR) signal">DTR: ON</button>
+                        <button id="btn-toggle-rts" class="btn btn-toggle" title="Toggle Request To Send (RTS) signal">RTS: ON</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Terminal Utility Action Bar -->
+        <div class="action-bar">
+            <div class="action-left">
+                <!-- Toggles -->
+                <label class="checkbox-label" title="Automatically scroll terminal on new data">
+                    <input type="checkbox" id="chk-autoscroll" checked>
+                    <span>Auto Scroll</span>
+                </label>
+
+                <label class="checkbox-label" title="Show timestamp prefix [HH:MM:SS]">
+                    <input type="checkbox" id="chk-timestamps" checked>
+                    <span>Timestamps</span>
+                </label>
+
+                <label class="checkbox-label" title="Pause rendering incoming data">
+                    <input type="checkbox" id="chk-pause">
+                    <span>Pause Stream</span>
+                </label>
+
+                <!-- Tools Buttons -->
+                <button id="btn-rules" class="btn btn-secondary btn-sm" title="Configure Regex Highlighting & Filtering Rules">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.92 0 1.5-.72 1.5-1.5 0-.4-.15-.78-.42-1.07-.27-.29-.42-.68-.42-1.09 0-.83.67-1.5 1.5-1.5H16c3.31 0 6-2.69 6-6 0-4.97-4.48-9-10-9z"/>
+                        <circle cx="7.5" cy="11.5" r=".75"/>
+                        <circle cx="10.5" cy="7.5" r=".75"/>
+                        <circle cx="15.5" cy="7.5" r=".75"/>
+                        <circle cx="17.5" cy="11.5" r=".75"/>
+                    </svg>
+                    <span>Rules</span>
+                </button>
+
+                <button id="btn-send-file" class="btn btn-secondary btn-sm" title="Send binary or text file over serial connection">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                        <polyline points="13 2 13 9 20 9"/>
+                    </svg>
+                    <span>Send File</span>
+                </button>
+            </div>
+
+            <!-- Terminal Actions & Export Menu -->
+            <div class="action-right">
+                <!-- Search bar -->
+                <div class="search-box">
+                    <input type="text" id="search-input" placeholder="Search log output..." aria-label="Search output">
+                    <kbd class="search-kbd">Ctrl+F</kbd>
+                    <span id="search-count" class="search-count"></span>
+                    <button id="btn-search-clear" class="btn-icon hidden" title="Clear search">&times;</button>
+                </div>
+
+                <button id="btn-clear" class="btn btn-secondary btn-sm" title="Clear terminal screen (Ctrl+L)">
+                    <span>Clear</span>
+                </button>
+
+                <button id="btn-copy" class="btn btn-secondary btn-sm" title="Copy terminal log to clipboard (Ctrl+C)">
+                    <span>Copy</span>
+                </button>
+
+                <!-- Multi-Format Export Dropdown -->
+                <div class="export-dropdown-container">
+                    <button id="btn-export-menu" class="btn btn-secondary btn-sm" title="Export terminal log to file">
+                        <span>Save Log ▼</span>
+                    </button>
+                    <div id="export-dropdown-menu" class="export-menu hidden">
+                        <button id="btn-export-txt" class="export-option">Export as TXT (.txt)</button>
+                        <button id="btn-export-csv" class="export-option">Export as CSV (.csv)</button>
+                        <button id="btn-export-ndjson" class="export-option">Export as NDJSON (.json)</button>
+                        <button id="btn-clear-db" class="export-option text-danger">Clear Saved DB History</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Terminal & Plotter Display Container -->
+        <main class="terminal-container">
+            <!-- Terminal Output View -->
+            <div id="terminal-screen" class="terminal-screen" tabindex="0" role="region" aria-label="Terminal Output Display">
+                <!-- Sleek Centered Empty State Connect CTA Card -->
+                <div id="terminal-welcome" class="terminal-welcome">
+                    <div class="welcome-card">
+                        <div class="welcome-icon">
+                            <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                                <path d="M6 8l4 4-4 4"/>
+                                <line x1="12" y1="16" x2="18" y2="16"/>
+                            </svg>
+                        </div>
+                        <h2 class="welcome-title">Web Serial Terminal Pro</h2>
+                        <p class="welcome-subtitle">Connect a USB serial device to begin live streaming, monitoring, and telemetry plotting.</p>
+                        <button id="btn-welcome-connect" class="btn btn-primary btn-lg">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
+                                <line x1="12" y1="2" x2="12" y2="12"/>
+                            </svg>
+                            <span>Connect Serial Device</span>
+                        </button>
+                        <div class="welcome-shortcuts">
+                            <span class="shortcut-chip"><kbd>Ctrl</kbd> + <kbd>L</kbd> Clear</span>
+                            <span class="shortcut-chip"><kbd>Ctrl</kbd> + <kbd>F</kbd> Search</span>
+                            <span class="shortcut-chip"><kbd>Ctrl</kbd> + <kbd>C</kbd> SIGINT</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="terminal-output" class="terminal-output">
+                    <div id="virtual-content" class="virtual-content"></div>
+                </div>
+            </div>
+
+            <!-- Live Telemetry Line Chart Plotter View -->
+            <div id="plotter-container" class="plotter-container hidden">
+                <div class="plotter-toolbar">
+                    <div class="plotter-title">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                        <span>Live Telemetry Serial Plotter</span>
+                        <span id="plotter-stats" class="plotter-stats">Parsing numeric telemetry values...</span>
+                    </div>
+                    <div class="plotter-controls">
+                        <button id="btn-clear-plotter" class="btn btn-secondary btn-sm">Clear Plot</button>
+                    </div>
+                </div>
+                <canvas id="plotter-canvas" class="plotter-canvas"></canvas>
+                <div id="plotter-legend" class="plotter-legend"></div>
+            </div>
+        </main>
+
+        <!-- Command Presets / Quick Macros Bar -->
+        <div class="macro-bar">
+            <span class="macro-label">Macros:</span>
+            <div id="macro-buttons" class="macro-buttons"></div>
+            <button id="btn-manage-macros" class="btn-icon" title="Manage persistent macros & presets">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+            </button>
+            <button id="btn-add-macro" class="btn-icon" title="Add custom macro command">+</button>
+        </div>
+
+        <!-- Input Control Section -->
+        <section class="input-section">
+            <div class="input-container">
+                <span class="input-prompt" id="input-prompt" title="Linux Shell Prompt">&gt;</span>
+                <input type="text" id="terminal-input" class="terminal-input" placeholder="Type command... (Enter: Send, Ctrl+C: Interrupt, Ctrl+L: Clear, Up/Down: History)" autocomplete="off" spellcheck="false" aria-label="Serial Command Input">
+                
+                <!-- Input Mode Selector -->
+                <div class="control-unit mode-unit" title="Line Mode (Buffered Enter) or Raw Mode (Instant keypress transmitting)">
+                    <select id="input-mode" class="select-input input-mode-select">
+                        <option value="line" selected>Line Mode</option>
+                        <option value="raw">Raw Mode</option>
+                    </select>
+                </div>
+
+                <!-- Line Endings Dropdown -->
+                <div class="control-unit line-ending-unit" id="line-ending-container" title="Line Ending delimiter to append on Send">
+                    <select id="line-ending" class="select-input line-ending-select">
+                        <option value="both" selected>CR+LF (\r\n)</option>
+                        <option value="lf">LF (\n)</option>
+                        <option value="cr">CR (\r)</option>
+                        <option value="none">None</option>
+                    </select>
+                </div>
+
+                <button id="btn-send" class="btn btn-primary btn-send" title="Send message to serial device (Enter)">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"/>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                    <span>Send</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Footer / Status Bar -->
+        <footer class="app-footer">
+            <div class="footer-item" id="footer-device">
+                <span class="footer-label">Device:</span>
+                <span class="footer-value" id="val-device">None</span>
+            </div>
+            <div class="footer-item" id="footer-baud">
+                <span class="footer-label">Baud:</span>
+                <span class="footer-value" id="val-baud">9600 8N1</span>
+            </div>
+            <div class="footer-item" id="footer-rx">
+                <span class="footer-label">RX Bytes:</span>
+                <span class="footer-value" id="val-rx">0 B</span>
+            </div>
+            <div class="footer-item" id="footer-tx">
+                <span class="footer-label">TX Bytes:</span>
+                <span class="footer-value" id="val-tx">0 B</span>
+            </div>
+            <div class="footer-right">
+                <button id="btn-reset-counters" class="btn-text" title="Reset byte counters">Reset Stats</button>
+                <span class="keyboard-hint">Press <kbd>Ctrl</kbd> + <kbd>L</kbd> to clear</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- MODAL 1: Send Binary / Firmware File Modal -->
+    <div id="modal-send-file" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title-file">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modal-title-file">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                        <polyline points="13 2 13 9 20 9"/>
+                    </svg>
+                    <span>Send Binary / Text File</span>
+                </h3>
+                <button id="btn-close-send-file" class="btn-icon" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="file-input-field">Select File:</label>
+                    <input type="file" id="file-input-field" class="text-input file-field">
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="file-chunk-size">Chunk Size (Bytes):</label>
+                        <input type="number" id="file-chunk-size" class="text-input" value="128" min="1" max="4096">
+                    </div>
+                    <div class="form-group">
+                        <label for="file-packet-delay">Inter-Packet Delay (ms):</label>
+                        <input type="number" id="file-packet-delay" class="text-input" value="20" min="0" max="5000">
+                    </div>
+                </div>
+                <div id="file-progress-container" class="file-progress-container hidden">
+                    <div class="progress-bar-track">
+                        <div id="file-progress-fill" class="progress-bar-fill"></div>
+                    </div>
+                    <span id="file-progress-text" class="file-progress-text">0% (0 / 0 bytes)</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-cancel-file" class="btn btn-secondary">Cancel</button>
+                <button id="btn-start-file-transfer" class="btn btn-primary">Start Transfer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: Highlighting & Filtering Rules Modal -->
+    <div id="modal-highlight-rules" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title-rules">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modal-title-rules">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.92 0 1.5-.72 1.5-1.5 0-.4-.15-.78-.42-1.07-.27-.29-.42-.68-.42-1.09 0-.83.67-1.5 1.5-1.5H16c3.31 0 6-2.69 6-6 0-4.97-4.48-9-10-9z"/>
+                        <circle cx="7.5" cy="11.5" r=".75"/>
+                        <circle cx="10.5" cy="7.5" r=".75"/>
+                        <circle cx="15.5" cy="7.5" r=".75"/>
+                        <circle cx="17.5" cy="11.5" r=".75"/>
+                    </svg>
+                    <span>Highlighting & Log Filtering Rules</span>
+                </h3>
+                <button id="btn-close-rules" class="btn-icon" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-hint">Add regex pattern matching rules for automated log line styling.</p>
+                <div id="rules-list" class="rules-list"></div>
+                <div class="add-rule-form">
+                    <input type="text" id="rule-pattern-input" class="text-input" placeholder="Regex pattern (e.g. ERROR|FAIL|WARN)">
+                    <select id="rule-style-select" class="select-input">
+                        <option value="rule-error">Red (Error / Critical)</option>
+                        <option value="rule-warn">Yellow (Warning)</option>
+                        <option value="rule-success">Green (Success)</option>
+                        <option value="rule-info">Cyan (Info)</option>
+                        <option value="rule-purple">Purple (Debug)</option>
+                    </select>
+                    <button id="btn-add-rule" class="btn btn-primary">+ Add Rule</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-save-rules" class="btn btn-primary">Close & Save Rules</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: Persistent Macro Manager Modal -->
+    <div id="modal-macro-manager" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title-macros">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modal-title-macros">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                    <span>Custom Macros & Presets</span>
+                </h3>
+                <button id="btn-close-macros" class="btn-icon" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="macro-preset-select">Load Preset Profile:</label>
+                    <select id="macro-preset-select" class="select-input">
+                        <option value="esp32">ESP32 / ESP8266 AT Commands</option>
+                        <option value="gps">GPS NMEA Telemetry</option>
+                        <option value="grbl">GRBL CNC Controller</option>
+                        <option value="custom">Custom Macros Set</option>
+                    </select>
+                </div>
+                <p class="modal-hint">Edit macro buttons saved across browser sessions.</p>
+                <div id="macros-edit-list" class="macros-edit-list"></div>
+                <div class="add-macro-form">
+                    <input type="text" id="macro-label-input" class="text-input" placeholder="Button Label (e.g. RESET)">
+                    <input type="text" id="macro-cmd-input" class="text-input" placeholder="Command (e.g. AT+RST)">
+                    <button id="btn-save-new-macro" class="btn btn-primary">+ Add Macro</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-close-macro-modal" class="btn btn-primary">Close Manager</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast Container -->
+    <div id="toast-container" class="toast-container" role="region" aria-live="assertive"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
