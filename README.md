@@ -6,7 +6,6 @@
 
 Communicates directly with USB-connected microcontrollers, embedded hardware, and serial devices using the modern **Web Serial API**—no backend servers, plugins, or driver installations required.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat&logo=html5&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/HTML)
 [![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat&logo=css3&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/CSS)
 [![JavaScript](https://img.shields.io/badge/JavaScript-ES6+-F7DF1E?style=flat&logo=javascript&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
@@ -222,7 +221,6 @@ web_serial_terminal/
 ├── script.js           # Core Web Serial API, Virtual List, Telemetry Plotter & DB logic
 ├── manifest.json       # Web App Manifest for PWA installation
 ├── sw.js               # Service Worker for offline application caching
-├── terminal_preview.png # Application preview screenshot
 └── README.md           # Project documentation
 ```
 
